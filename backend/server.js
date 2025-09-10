@@ -31,7 +31,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: "http://localhost:8080",
-    methods: ["GET", "POST", "PUT"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
@@ -284,6 +284,126 @@ app.post(
     }
   }
 );
+
+// Cria um contato
+app.post("/contatos", authenticateToken, async (req, res) => {
+  try {
+    const { nome, email, telefone } = req.body || {};
+
+    if (!nome) {
+      return res.status(400).json({ error: "Nome é obrigatório!" });
+    }
+
+    // Validação de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (email && !emailRegex.test(email)) {
+      return res.status(400).json({ error: "Email inválido!" });
+    }
+
+    // Validação de telefone (apenas números e até 15 dígitos)
+    const telefoneRegex = /^d{0,15}$/;
+    if (telefone && !telefoneRegex.test(telefone)) {
+      return res.status(400).json({ error: "Telefone inválido" });
+    }
+
+    const query = `
+      INSERT INTO contatos (user_id, nome, email, telefone)
+      VALUES ($1, $2, $3, $4)
+      RETURNING contato_id, user_id, nome, email, telefone, data_criacao
+    `;
+    const values = [req.user.id, nome, email || null, telefone || null];
+
+    const result = await pool.query(query, values);
+    res
+      .status(201)
+      .json({ message: "Contato criado!", contato: result.rows[0] });
+  } catch (error) {
+    console.error("Erro ao criar contato:", error);
+    res.status(500).json({ error: "Erro ao criar contato" });
+  }
+});
+
+// Lista de contatos do usuário logado
+app.get("/contatos", authenticateToken, async (req, res) => {
+  try {
+    const query =
+      "SELECT * FROM contatos WHERE user_id = $1 ORDER BY data_criacao DESC";
+    const result = await pool.query(query, [req.user.id]);
+    res.json({ contatos: result.rows });
+  } catch (error) {
+    console.error("Erro ao listar contatos:", error);
+    res.status(500).json({ error: "Erro ao listar contatos" });
+  }
+});
+
+// Atualiza contato
+app.put("/contatos/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, email, telefone } = req.body || {};
+
+    if (!nome && !email && !telefone) {
+      return res.status(400).json({
+        error: "É necessário fornecer pelo menos um campo para atualizar!",
+      });
+    }
+
+    // Regex para validação
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const telefoneRegex = /^\d{0,15}$/;
+
+    if (email && !emailRegex.test(email))
+      return res.status(400).json({ error: "Email inválido!" });
+    if (telefone && !telefoneRegex.test(telefone))
+      return res.status(400).json({ error: "Telefone inválido!" });
+
+    // Busca contato e verifica se pertence ao usuário
+    const checkQuery =
+      "SELECT * FROM contatos WHERE contato_id = $1 AND user_id = $2";
+    const checkResult = await pool.query(checkQuery, [id, req.user.id]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Contato não encontrado!" });
+    }
+
+    const updateQuery = `
+      UPDATE contatos
+      SET nome = COALESCE($1, nome),
+          email = COALESCE($2, email),
+          telefone = COALESCE($3, telefone)
+      WHERE contato_id = $4
+      RETURNING *
+    `;
+    const values = [nome, email, telefone, id];
+    const result = await pool.query(updateQuery, values);
+
+    res.json({ message: "Contato atualizado!", contato: result.rows[0] });
+  } catch (error) {
+    console.error("Erro ao atualizar contato:", error);
+    res.status(500).json({ error: "Erro ao atualizar contato" });
+  }
+});
+
+// Deleta contato
+app.delete("/contatos/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleteQuery =
+      "DELETE FROM contatos WHERE contato_id = $1 AND user_id = $2 RETURNING *";
+    const result = await pool.query(deleteQuery, [id, req.user.id]);
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Contato não encontrado ou não pertence ao usuário" });
+    }
+
+    res.json({ message: "Contato deletado com sucesso!" });
+  } catch (error) {
+    console.error("Erro ao deletar contato:", error);
+    res.status(500).json({ error: "Erro ao deletar contato" });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
