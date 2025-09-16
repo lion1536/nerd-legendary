@@ -96,9 +96,9 @@ app.get("/db-test", async (req, res) => {
 // Rota de cadastro com PostgreSQL
 app.post("/cadastro", async (req, res) => {
   try {
-    const {email, senha } = req.body || {};
+    const {username, email, senha } = req.body || {};
 
-    if (!email || !senha ) {
+    if (!username || !email || !senha ) {
       return res
         .status(400)
         .json({ error: "Todos os campos são obrigatórios!" });
@@ -112,19 +112,15 @@ app.post("/cadastro", async (req, res) => {
 
     // Inserção no banco
     const query = `
-      INSERT INTO usuario (username, senha_hash, email, data_cadastro)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING user_id, username, email, data_cadastro
+      INSERT INTO usuario ( username, senha_hash, email)
+      VALUES ($1, $2, $3)
     `;
-    const values = [username, senha_hash, email, data_cadastro];
+    const values = [username, senha_hash, email];
 
     const result = await pool.query(query, values);
 
-    const novoUsuario = result.rows[0];
-
     res.status(201).json({
       message: "Usuário cadastrado com sucesso!",
-      usuario: novoUsuario,
     });
   } catch (error) {
     console.error("Erro no cadastro:", error);
