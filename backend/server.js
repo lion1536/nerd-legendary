@@ -96,9 +96,9 @@ app.get("/db-test", async (req, res) => {
 // Rota de cadastro com PostgreSQL
 app.post("/cadastro", async (req, res) => {
   try {
-    const { username, email, senha } = req.body || {};
+    const {email, senha } = req.body || {};
 
-    if (!username || !email || !senha ) {
+    if (!email || !senha ) {
       return res
         .status(400)
         .json({ error: "Todos os campos são obrigatórios!" });
