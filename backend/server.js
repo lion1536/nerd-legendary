@@ -30,7 +30,7 @@ const pool = new Pool({
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:8080",
+    origin: "https://nerdy-zone.onrender.com",
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
