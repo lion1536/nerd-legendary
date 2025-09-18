@@ -187,8 +187,8 @@ app.post("/login", async (req, res) => {
 app.get("/perfil", authenticateToken, async (req, res) => {
   try {
     const query = `
-      SELECT perfil_id, user_id, nome, bio, telefone, link, data_criacao
-      FROM perfil
+      SELECT username, email, tipo_user
+      FROM usuario
       WHERE user_id = $1
     `;
     const result = await pool.query(query, [req.user.id]);
