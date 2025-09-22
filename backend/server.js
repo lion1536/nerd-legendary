@@ -32,7 +32,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: "https://nerdy-zone.onrender.com",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
