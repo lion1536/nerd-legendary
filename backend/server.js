@@ -8,6 +8,7 @@ import fs from "fs";
 import multer from "multer";
 import path from "path";
 import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
 
 dotenv.config();
 
