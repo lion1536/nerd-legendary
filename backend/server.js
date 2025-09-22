@@ -269,10 +269,8 @@ const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
-const router = express.Router();
-
-// Rota para upload de foto de perfil
-router.post(
+// Upload da foto de perfil
+app.post(
   "/perfil/foto",
   authenticateToken,
   upload.single("imagem"), // campo no FormData deve ser "imagem"
@@ -289,16 +287,16 @@ router.post(
 
       // 2. Opcional: deletar foto anterior
       const oldImg = await pool.query(
-        "SELECT public_id FROM fotos WHERE perfil_id = $1 LIMIT 1",
+        "SELECT public_id FROM perfil_foto WHERE perfil_id = $1 LIMIT 1",
         [req.user.id]
       );
       if (oldImg.rows[0]?.public_id) {
         await cloudinary.uploader.destroy(oldImg.rows[0].public_id);
       }
 
-      // 3. Inserir nova foto na tabela fotos
+      // 3. Inserir nova foto na tabela perfil_foto
       const insertQuery = `
-        INSERT INTO fotos (perfil_id, link, public_id)
+        INSERT INTO perfil_foto (perfil_id, link, public_id)
         VALUES ($1, $2, $3)
         RETURNING pfp_id, perfil_id, link, public_id
       `;
@@ -316,9 +314,8 @@ router.post(
   }
 );
 
-export default router;
-
-router.get("/perfil/foto", authenticateToken, async (req, res) => {
+// Buscar foto de perfil
+app.get("/perfil/foto", authenticateToken, async (req, res) => {
   try {
     const query = `
       SELECT perfil_id, link, public_id
@@ -338,6 +335,7 @@ router.get("/perfil/foto", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar foto" });
   }
 });
+
 // Cria um contato
 app.post("/contatos", authenticateToken, async (req, res) => {
   try {
