@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import fs from "fs";
 import multer from "multer";
 import path from "path";
+import { v2 as cloudinary } from "cloudinary";
 
 dotenv.config();
 
@@ -77,7 +78,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage, fileFilter });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Rota de teste para PostgreSQL
 app.get("/db-test", async (req, res) => {
@@ -96,9 +97,9 @@ app.get("/db-test", async (req, res) => {
 // Rota de cadastro com PostgreSQL
 app.post("/cadastro", async (req, res) => {
   try {
-    const {username, email, senha } = req.body || {};
+    const { username, email, senha } = req.body || {};
 
-    if (!username || !email || !senha ) {
+    if (!username || !email || !senha) {
       return res
         .status(400)
         .json({ error: "Todos os campos são obrigatórios!" });
@@ -247,32 +248,61 @@ app.put("/perfil", authenticateToken, async (req, res) => {
 });
 
 // Rota de upload de foto de perfil
+// Configuration
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Upload an image
+
+const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: "image" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result); // result.secure_url, result.public_id, etc
+      }
+    );
+    streamifier.createReadStream(buffer).pipe(stream);
+  });
+
+
+// endpoint
 app.post(
   "/perfil/foto",
   authenticateToken,
-  upload.single("link"),
+  upload.single("imagem"), // <input name="imagem">
   async (req, res) => {
     try {
-      const link = req.file ? req.file.path : null;
-      if (!link) return res.status(400).json({ error: "Arquivo não enviado" });
+      if (!req.file)
+        return res.status(400).json({ error: "Arquivo não enviado" });
 
-      // Atualiza tabela perfil
+      // envia para Cloudinary
+      const result = await uploadStreamToCloudinary(req.file.buffer, "perfil");
+      // result.secure_url é a URL pública, result.public_id é útil para deletar depois
+      const link = result.secure_url;
+      const publicId = result.public_id;
+
+      // opcional: salve também public_id para permitir remoção futura
       const query = `
-      UPDATE perfil
-      SET link = $1
-      WHERE user_id = $2
-      RETURNING perfil_id, user_id, link
-    `;
-      const values = [link, req.user.id];
-      const result = await pool.query(query, values);
+        UPDATE perfil
+        SET link = $1, public_id = $2
+        WHERE user_id = $3
+        RETURNING perfil_id, user_id, link, public_id
+      `;
+      const values = [link, publicId, req.user.id];
+      const dbRes = await pool.query(query, values);
 
-      if (result.rows.length === 0) {
+      if (dbRes.rows.length === 0) {
         return res.status(404).json({ error: "Perfil não encontrado" });
       }
 
       res.json({
         message: "Foto de perfil atualizada com sucesso!",
-        perfil: result.rows[0],
+        perfil: dbRes.rows[0],
       });
     } catch (error) {
       console.error("Erro ao atualizar foto de perfil:", error);
@@ -280,7 +310,6 @@ app.post(
     }
   }
 );
-
 // Cria um contato
 app.post("/contatos", authenticateToken, async (req, res) => {
   try {
