@@ -58,7 +58,7 @@ const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
-  
+
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -249,7 +249,7 @@ app.put("/perfil", authenticateToken, async (req, res) => {
           bio = COALESCE($2, bio),
           telefone = COALESCE($3, telefone)
       WHERE user_id = $4
-      RETURNING perfil_id, user_id, nome, bio, telefone, link, data_criacao
+      RETURNING perfil_id, user_id, nome, bio, telefone
     `;
     const values = [nome, bio, telefone, req.user_id];
 
@@ -297,9 +297,9 @@ app.patch(
       // 3. Atualizar a tabela perfil_foto
       const updateQuery = `
         UPDATE perfil_foto
-        SET link = $1, public_id = $2
+        SET url = $1, public_id = $2
         WHERE perfil_id = $3
-        RETURNING pfp_id, perfil_id, link, public_id
+        RETURNING pfp_id, perfil_id, url, public_id
       `;
       const values = [link, publicId, req.user.id];
       const dbRes = await pool.query(updateQuery, values);
@@ -323,7 +323,7 @@ app.patch(
 app.get("/foto", authenticateToken, async (req, res) => {
   try {
     const query = `
-      SELECT perfil_id, link, public_id
+      SELECT perfil_id, url, public_id
       FROM perfil_foto
       WHERE perfil_id = $1
       LIMIT 1
