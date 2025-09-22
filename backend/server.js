@@ -270,7 +270,7 @@ const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
   });
 
 // Upload da foto de perfil
-app.post(
+app.patch(
   "/perfil/foto",
   authenticateToken,
   upload.single("imagem"), // campo no FormData deve ser "imagem"
@@ -285,7 +285,7 @@ app.post(
       const link = result.secure_url;
       const publicId = result.public_id;
 
-      // 2. Opcional: deletar foto anterior
+      // 2. Deletar foto anterior se existir
       const oldImg = await pool.query(
         "SELECT public_id FROM perfil_foto WHERE perfil_id = $1 LIMIT 1",
         [req.user.id]
@@ -294,14 +294,19 @@ app.post(
         await cloudinary.uploader.destroy(oldImg.rows[0].public_id);
       }
 
-      // 3. Inserir nova foto na tabela perfil_foto
-      const insertQuery = `
-        INSERT INTO perfil_foto (perfil_id, link, public_id)
-        VALUES ($1, $2, $3)
+      // 3. Atualizar a tabela perfil_foto
+      const updateQuery = `
+        UPDATE perfil_foto
+        SET link = $1, public_id = $2
+        WHERE perfil_id = $3
         RETURNING pfp_id, perfil_id, link, public_id
       `;
-      const values = [req.user.id, link, publicId];
-      const dbRes = await pool.query(insertQuery, values);
+      const values = [link, publicId, req.user.id];
+      const dbRes = await pool.query(updateQuery, values);
+
+      if (dbRes.rows.length === 0) {
+        return res.status(404).json({ error: "Perfil não encontrado" });
+      }
 
       res.json({
         message: "Foto de perfil atualizada com sucesso!",
