@@ -38,6 +38,27 @@ app.use(
   })
 );
 
+// Configuration
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Upload an image
+
+const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: "image" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result); // result.secure_url, result.public_id, etc.
+      }
+    );
+    streamifier.createReadStream(buffer).pipe(stream);
+  });
+  
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -242,33 +263,11 @@ app.put("/perfil", authenticateToken, async (req, res) => {
       message: "Perfil atualizado com sucesso!",
       perfil: result.rows[0],
     });
-  } catch {
+  } catch (error) { 
     console.error("Erro ao atualizar perfil:", error);
     res.status(500).json({ error: "Erro ao atualizar perfil" });
   }
 });
-
-// Rota de upload de foto de perfil
-// Configuration
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// Upload an image
-
-const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
-  new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "image" },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result); // result.secure_url, result.public_id, etc.
-      }
-    );
-    streamifier.createReadStream(buffer).pipe(stream);
-  });
 
 // Upload da foto de perfil
 app.patch(
