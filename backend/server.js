@@ -263,46 +263,51 @@ const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
       { folder, resource_type: "image" },
       (error, result) => {
         if (error) return reject(error);
-        resolve(result); // result.secure_url, result.public_id, etc
+        resolve(result); // result.secure_url, result.public_id, etc.
       }
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
+const router = express.Router();
 
-// endpoint
-app.post(
+// Rota para upload de foto de perfil
+router.post(
   "/perfil/foto",
   authenticateToken,
-  upload.single("imagem"), // <input name="imagem">
+  upload.single("imagem"), // campo no FormData deve ser "imagem"
   async (req, res) => {
     try {
-      if (!req.file)
-        return res.status(400).json({ error: "Arquivo não enviado" });
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado" });
+      }
 
-      // envia para Cloudinary
+      // 1. Upload no Cloudinary
       const result = await uploadStreamToCloudinary(req.file.buffer, "perfil");
-      // result.secure_url é a URL pública, result.public_id é útil para deletar depois
       const link = result.secure_url;
       const publicId = result.public_id;
 
-      // opcional: salve também public_id para permitir remoção futura
-      const query = `
-        UPDATE perfil
-        SET link = $1, public_id = $2
-        WHERE user_id = $3
-        RETURNING perfil_id, user_id, link, public_id
-      `;
-      const values = [link, publicId, req.user.id];
-      const dbRes = await pool.query(query, values);
-
-      if (dbRes.rows.length === 0) {
-        return res.status(404).json({ error: "Perfil não encontrado" });
+      // 2. Opcional: deletar foto anterior
+      const oldImg = await pool.query(
+        "SELECT public_id FROM fotos WHERE perfil_id = $1 LIMIT 1",
+        [req.user.id]
+      );
+      if (oldImg.rows[0]?.public_id) {
+        await cloudinary.uploader.destroy(oldImg.rows[0].public_id);
       }
+
+      // 3. Inserir nova foto na tabela fotos
+      const insertQuery = `
+        INSERT INTO fotos (perfil_id, link, public_id)
+        VALUES ($1, $2, $3)
+        RETURNING pfp_id, perfil_id, link, public_id
+      `;
+      const values = [req.user.id, link, publicId];
+      const dbRes = await pool.query(insertQuery, values);
 
       res.json({
         message: "Foto de perfil atualizada com sucesso!",
-        perfil: dbRes.rows[0],
+        foto: dbRes.rows[0],
       });
     } catch (error) {
       console.error("Erro ao atualizar foto de perfil:", error);
@@ -310,6 +315,29 @@ app.post(
     }
   }
 );
+
+export default router;
+
+router.get("/perfil/foto", authenticateToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT perfil_id, link, public_id
+      FROM perfil_foto
+      WHERE perfil_id = $1
+      LIMIT 1
+    `;
+    const result = await pool.query(query, [req.user.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Nenhuma foto encontrada" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Erro ao buscar foto:", error);
+    res.status(500).json({ error: "Erro ao buscar foto" });
+  }
+});
 // Cria um contato
 app.post("/contatos", authenticateToken, async (req, res) => {
   try {
