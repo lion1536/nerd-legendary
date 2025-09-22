@@ -272,7 +272,7 @@ const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
 
 // Upload da foto de perfil
 app.patch(
-  "/perfil/foto",
+  "/foto",
   authenticateToken,
   upload.single("imagem"), // campo no FormData deve ser "imagem"
   async (req, res) => {
@@ -321,7 +321,7 @@ app.patch(
 );
 
 // Buscar foto de perfil
-app.get("/perfil/foto", authenticateToken, async (req, res) => {
+app.get("/foto", authenticateToken, async (req, res) => {
   try {
     const query = `
       SELECT perfil_id, link, public_id
