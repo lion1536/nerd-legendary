@@ -130,25 +130,18 @@ app.post("/cadastro", async (req, res) => {
     // Hash da senha
     const senha_hash = await bcrypt.hash(senha, 12);
 
-    // Data de cadastro atual
-    const data_cadastro = new Date();
-
     // Inserção no banco
     const query = `
-      INSERT INTO usuario ( username, senha_hash, email)
+      INSERT INTO usuario ( username, senha_hash, email, tipo_user)
       VALUES ($1, $2, $3)
       RETURNING user_id
     `;
     const values = [username, senha_hash, email];
-
     const result = await pool.query(query, values);
+    const newPerfil = `INSERT INTO perfil ( user_id ) VALUES ( $1 ) RETURNING perfil_id`;
+    const newPerfilQuery = await pool.query(newPerfil, query);
     // Inserção da foto de perfil padrão
-    // Pega id do usuário
-    const userId = result.rows[0].user_id;
-    // Pega o id do perfil através do id do usuario
-    const getPerfilId = `SELECT perfil_id FROM perfil WHERE user_id = $1`;
-    const getPerfilIdRes = await pool.query(getPerfilId, [userId]);
-    const perfilId = getPerfilIdRes.rows[0].perfil_id;
+    const perfilId = newPerfilQuery.rows[0].perfil_id;
 
     const inserirDefault = `INSERT INTO perfil_foto ( url, perfil_id )
      VALUES ( 'https://res.cloudinary.com/dkdifpjty/image/upload/v1758570922/perfil_default_x8douz.png', $1 )`;
