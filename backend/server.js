@@ -275,9 +275,6 @@ app.put("/perfil", authenticateToken, async (req, res) => {
 });
 
 // Upload da foto de perfil
-import { v2 as cloudinary } from "cloudinary";
-import streamifier from "streamifier";
-
 app.patch(
   "/foto",
   authenticateToken,
