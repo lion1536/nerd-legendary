@@ -275,47 +275,69 @@ app.put("/perfil", authenticateToken, async (req, res) => {
 });
 
 // Upload da foto de perfil
+import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
+
 app.patch(
   "/foto",
   authenticateToken,
-  upload.single("imagem"), // campo no FormData deve ser "imagem"
+  upload.single("imagem"),
   async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "Nenhum arquivo enviado" });
       }
 
-      // 1. Upload no Cloudinary
-      const result = await uploadStreamToCloudinary(req.file.buffer, "perfil");
-      const link = result.secure_url;
+      // Função para enviar buffer para o Cloudinary
+      const streamUpload = (buffer) => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "perfil" }, // pasta no Cloudinary
+            (error, result) => {
+              if (result) resolve(result);
+              else reject(error);
+            }
+          );
+          streamifier.createReadStream(buffer).pipe(stream);
+        });
+      };
+
+      // 1. Upload da nova imagem
+      const result = await streamUpload(req.file.buffer);
       const publicId = result.public_id;
 
-      // 2. Deletar foto anterior se existir
-      const oldImg = await pool.query(
+      // 2. Deletar imagem antiga se existir
+      const oldImgRes = await pool.query(
         "SELECT public_id FROM perfil_foto WHERE perfil_id = $1 LIMIT 1",
         [req.user.id]
       );
-      if (oldImg.rows[0]?.public_id) {
-        await cloudinary.uploader.destroy(oldImg.rows[0].public_id);
+      if (oldImgRes.rows[0]?.public_id) {
+        await cloudinary.uploader.destroy(oldImgRes.rows[0].public_id);
       }
 
-      // 3. Atualizar a tabela perfil_foto se já tiver um registro de foto para o usuário
-      const updateQuery = `
-        UPDATE perfil_foto
-        SET url = $1, public_id = $2
-        WHERE perfil_id = $3
-        RETURNING pfp_id, perfil_id, url, public_id
+      // 3. Atualizar ou inserir registro no banco
+      const upsertQuery = `
+        INSERT INTO perfil_foto (perfil_id, public_id)
+        VALUES ($1, $2)
+        ON CONFLICT (perfil_id) DO UPDATE
+        SET public_id = EXCLUDED.public_id
+        RETURNING pfp_id, perfil_id, public_id
       `;
-      const values = [link, publicId, req.user.id];
-      const dbRes = await pool.query(updateQuery, values);
+      const dbRes = await pool.query(upsertQuery, [req.user.id, publicId]);
 
-      if (dbRes.rows.length === 0) {
-        return res.status(404).json({ error: "Perfil não encontrado" });
-      }
+      // 4. Retornar URL já transformada (200x200, círculo)
+      const url = cloudinary.url(publicId, {
+        width: 200,
+        height: 200,
+        crop: "thumb",
+        gravity: "face",
+        radius: "max",
+        format: "png",
+      });
 
       res.json({
         message: "Foto de perfil atualizada com sucesso!",
-        foto: dbRes.rows[0],
+        foto: { ...dbRes.rows[0], url },
       });
     } catch (error) {
       console.error("Erro ao atualizar foto de perfil:", error);
@@ -323,6 +345,7 @@ app.patch(
     }
   }
 );
+
 
 // Buscar foto de perfil
 app.get("/foto", authenticateToken, async (req, res) => {
