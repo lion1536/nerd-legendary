@@ -137,10 +137,22 @@ app.post("/cadastro", async (req, res) => {
     const query = `
       INSERT INTO usuario ( username, senha_hash, email)
       VALUES ($1, $2, $3)
+      RETURNING user_id
     `;
     const values = [username, senha_hash, email];
 
     const result = await pool.query(query, values);
+    // Inserção da foto de perfil padrão
+    // Pega id do usuário
+    const userId = result.rows[0].user_id;
+    // Pega o id do perfil através do id do usuario
+    const getPerfilId = `SELECT perfil_id FROM perfil WHERE user_id = $1`;
+    const getPerfilIdRes = await pool.query(getPerfilId, [userId]);
+    const perfilId = getPerfilIdRes.rows[0].perfil_id;
+
+    const inserirDefault = `INSERT INTO perfil_foto ( url, perfil_id )
+     VALUES ( 'https://res.cloudinary.com/dkdifpjty/image/upload/v1758570922/perfil_default_x8douz.png', $1 )`;
+    const queryDefault = await pool.query(inserirDefault, [perfilId]);
 
     res.status(201).json({
       message: "Usuário cadastrado com sucesso!",
@@ -263,7 +275,7 @@ app.put("/perfil", authenticateToken, async (req, res) => {
       message: "Perfil atualizado com sucesso!",
       perfil: result.rows[0],
     });
-  } catch (error) { 
+  } catch (error) {
     console.error("Erro ao atualizar perfil:", error);
     res.status(500).json({ error: "Erro ao atualizar perfil" });
   }
@@ -294,7 +306,7 @@ app.patch(
         await cloudinary.uploader.destroy(oldImg.rows[0].public_id);
       }
 
-      // 3. Atualizar a tabela perfil_foto
+      // 3. Atualizar a tabela perfil_foto se já tiver um registro de foto para o usuário
       const updateQuery = `
         UPDATE perfil_foto
         SET url = $1, public_id = $2
