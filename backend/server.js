@@ -139,7 +139,7 @@ app.post("/cadastro", async (req, res) => {
     const values = [username, senha_hash, email];
     const result = await pool.query(query, values);
     const newPerfil = `INSERT INTO perfil ( user_id ) VALUES ( $1 ) RETURNING perfil_id`;
-    const newPerfilQuery = await pool.query(newPerfil, query);
+    const newPerfilQuery = await pool.query(newPerfil, [query]);
     // Inserção da foto de perfil padrão
     const perfilId = newPerfilQuery.rows[0].perfil_id;
 
