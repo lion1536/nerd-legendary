@@ -132,7 +132,7 @@ app.post("/cadastro", async (req, res) => {
 
     // Inserção no banco
     const query = `
-      INSERT INTO usuario ( username, senha_hash, email, tipo_user)
+      INSERT INTO usuario ( username, senha_hash, email)
       VALUES ($1, $2, $3)
       RETURNING user_id
     `;
