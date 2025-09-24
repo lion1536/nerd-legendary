@@ -219,7 +219,7 @@ app.get("/perfil", authenticateToken, async (req, res) => {
       FROM usuario
       WHERE user_id = $1
     `;
-    const result = await pool.query(query, [req.user.id]);
+    const result = await pool.query(query, [req.user_id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Perfil não encontrado" });
@@ -486,6 +486,43 @@ app.delete("/contatos/:id", authenticateToken, async (req, res) => {
   }
 });
 
+app.post("/adicaop", async (req, res) => {
+  try {
+    const { data, lugar, hora, preço, nome } = req.body || {};
+
+    if (!data || !lugar || !hora || !preço || !nome) {
+      return res
+        .status(400)
+        .json({ error: "Todos os campos são obrigatórios!" });
+    }
+
+    // Inserção no banco
+    const queryE = `
+      INSERT INTO evento ( data, lugar, hora, preço, nome, user_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING evento_id, user_id
+    `;
+    const valuesE = [data, lugar, hora, preço, nome, req.user_id];
+    const resultE = await pool.query(queryE, values);
+
+    const inserirDefault = `INSERT INTO evento_foto ( url, perfil_id )
+     VALUES ( 'https://res.cloudinary.com/dkdifpjty/image/upload/v1758570922/perfil_default_x8douz.png', $1 )`;
+    const queryDefault = await pool.query(inserirDefault, [perfilId]);
+
+    res.status(201).json({
+      message: "Usuário cadastrado com sucesso!",
+    });
+  } catch (error) {
+    console.error("Erro no cadastro:", error);
+
+    // Caso já exista email duplicado
+    if (error.code === "23505") {
+      return res.status(400).json({ error: "Email já cadastrado!" });
+    }
+
+    res.status(500).json({ error: "Erro ao cadastrar usuário" });
+  }
+});
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
