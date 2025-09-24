@@ -61,17 +61,14 @@ const uploadStreamToCloudinary = (buffer, folder = "perfil") =>
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const token = authHeader && authHeader.split(" ")[1]; // pega a parte depois do "Bearer"
 
-  if (!token) {
-    return res.status(401).json({ error: "Token não fornecido" });
-  }
+  if (!token) return res.status(401).json({ error: "Token não fornecido" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
+    if (err)
       return res.status(403).json({ error: "Token inválido ou expirado" });
-    }
-    req.user = user;
+    req.user = user; // << deve existir
     next();
   });
 }
@@ -139,7 +136,9 @@ app.post("/cadastro", async (req, res) => {
     const values = [username, senha_hash, email];
     const result = await pool.query(query, values);
     const newPerfil = `INSERT INTO perfil ( user_id ) VALUES ( $1 ) RETURNING perfil_id`;
-    const newPerfilQuery = await pool.query(newPerfil, [result.rows[0].user_id]);
+    const newPerfilQuery = await pool.query(newPerfil, [
+      result.rows[0].user_id,
+    ]);
     // Inserção da foto de perfil padrão
     const perfilId = newPerfilQuery.rows[0].perfil_id;
 
@@ -256,7 +255,7 @@ app.put("/perfil", authenticateToken, async (req, res) => {
       WHERE user_id = $4
       RETURNING perfil_id, user_id, nome, bio, telefone
     `;
-    const values = [nome, bio, telefone, req.user_id];
+    const values = [nome, bio, telefone, req.user.id];
 
     const result = await pool.query(query, values);
 
@@ -342,7 +341,6 @@ app.patch(
     }
   }
 );
-
 
 // Buscar foto de perfil
 app.get("/foto", authenticateToken, async (req, res) => {
